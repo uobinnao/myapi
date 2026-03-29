@@ -1,4 +1,4 @@
-from time import monotonic, _ClockInfo
+from time import monotonic
 
 
 now = monotonic()
