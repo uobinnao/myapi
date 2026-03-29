@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 import yaml  # pip install pyyaml
 from app.main import app  # change this import to your real module path
+
+
 def main() -> None:
     schema = app.openapi()
     Path("openapi.json").write_text(
