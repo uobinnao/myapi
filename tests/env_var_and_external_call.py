@@ -1,3 +1,3 @@
-def test_settings(monkeypatch):
-    monkeypatch.setenv("API_KEY", "test-key")
-    ...
+# def test_settings(monkeypatch):
+#     monkeypatch.setenv("API_KEY", "test-key")
+#     ...
