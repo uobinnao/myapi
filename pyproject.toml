@@ -13,6 +13,7 @@ dependencies = [
     "python-dotenv==1.1.0",
     "pulumi>=3.228.0",
     "pulumi-gcp>=9.16.0",
+    "asgi-lifespan==2.*",
 ]
 
 [dependency-groups]
@@ -21,9 +22,9 @@ dev = [
     "ruff",
 ]
 
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-q"
 
 [tool.ruff]

@@ -8,8 +8,8 @@ from app.settings import Settings, get_settings
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
-    def override_settings() -> Settings:
+def override_settings() -> Iterator[None]:
+    def _override_settings() -> Settings:
         return Settings(
             app_name="myapi",
             app_version="test",
@@ -17,9 +17,12 @@ def client() -> Iterator[TestClient]:
             usda_api_key=None,
         )
 
-    app.dependency_overrides[get_settings] = override_settings
+    app.dependency_overrides[get_settings] = _override_settings
+    yield
+    app.dependency_overrides.clear()
 
+
+@pytest.fixture
+def client(override_settings: None) -> Iterator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
-
-    app.dependency_overrides.clear()

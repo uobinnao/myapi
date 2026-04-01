@@ -574,6 +574,9 @@ async def search_foods(
     cfg: Settings = Depends(get_settings),
     state: AppState = Depends(get_app_state),
 ) -> FoodsResponse:
+
+    query_value = validate_food_type(request, food_type.strip())
+
     if not cfg.usda_api_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -586,7 +589,7 @@ async def search_foods(
             ),
         )
 
-    query_value = validate_food_type(request, food_type.strip())
+    # query_value = validate_food_type(request, food_type.strip())
 
     try:
         response = await state.http.get(
