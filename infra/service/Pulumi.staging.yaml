@@ -1,0 +1,11 @@
+encryptionsalt: v1:qPpRxECfkRo=:v1:HE1YkvSaC7o0ChlF:cFrfzYb5V5eQGGEwy4V/BZE4ZXcBcw==
+config:
+  gcp:project: i1ncx3d2imnb1k
+  gcp:region: us-central1
+  myapi-service:serviceName: myapi-staging
+  myapi-service:artifactRegistryRepoId: myapi
+  myapi-service:runtimeServiceAccountId: myapi-staging-runtime
+  myapi-service:appEnv: staging
+  myapi-service:usdaSecretName: USDA_API_KEY_STAGING
+  myapi-service:deployerPrincipal: serviceAccount:github-myapi-staging@i1ncx3d2imnb1k.iam.gserviceaccount.com
+  myapi-service:stagingInvokerMember: user:tnkvie@gmail.com

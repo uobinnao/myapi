@@ -1,0 +1,6 @@
+name: myapi-service
+description: Cloud Run service stacks for myapi
+runtime:
+  name: python
+  options:
+    toolchain: uv
