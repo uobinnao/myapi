@@ -6,6 +6,7 @@ dist/
 wheels/
 *.egg-info
 *.me
+project_ids.txt
 
 # Virtual environments
 .venv

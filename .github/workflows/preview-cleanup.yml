@@ -1,0 +1,56 @@
+name: preview-cleanup
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed, unlabeled]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: preview-cleanup-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  cleanup-preview:
+    if: >
+      github.event.action == 'closed' ||
+      (github.event.action == 'unlabeled' && github.event.label.name == 'preview')
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: us-central1
+      SERVICE_NAME: myapi-pr-${{ github.event.pull_request.number }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Delete preview service if it exists
+        shell: bash
+        run: |
+          if gcloud run services describe "$SERVICE_NAME" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" >/dev/null 2>&1; then
+            gcloud run services delete "$SERVICE_NAME" \
+              --region "$REGION" \
+              --project "$PROJECT_ID" \
+              --quiet
+          else
+            echo "Service $SERVICE_NAME does not exist; nothing to delete."
+          fi

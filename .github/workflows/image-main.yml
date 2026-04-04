@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: image-main-${{ github.ref }}
@@ -17,9 +18,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
+    outputs:
+      image_name: ${{ steps.meta.outputs.image_name }}
+      image_repo: ${{ steps.refs_final.outputs.image_repo }}
+      image_ref_tag: ${{ steps.refs_final.outputs.image_ref_tag }}
+      image_ref_digest: ${{ steps.refs_final.outputs.image_ref_digest }}
+      image_digest: ${{ steps.build.outputs.digest }}
+
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: '>= 416.0.0'
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
 
       - name: Read Python version for Docker
         id: pyver
@@ -38,16 +61,31 @@ jobs:
           )"
           echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
 
+      - name: Compute Artifact Registry refs
+        id: refs
+        run: |
+          IMAGE_REPO="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/${{ steps.meta.outputs.image_name }}"
+          IMAGE_REF_TAG="${IMAGE_REPO}:${GITHUB_SHA}"
+          IMAGE_REF_DIGEST="${IMAGE_REPO}@${DIGEST}"
+
+          echo "image_repo=$IMAGE_REPO" >> "$GITHUB_OUTPUT"
+          echo "image_ref_tag=$IMAGE_REF_TAG" >> "$GITHUB_OUTPUT"
+          echo "image_ref_digest=$IMAGE_REF_DIGEST" >> "$GITHUB_OUTPUT"
+        env:
+          DIGEST: placeholder
+          GITHUB_SHA: ${{ github.sha }}
+        shell: bash
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build immutable image
+      - name: Build and push immutable image
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: false
-          load: true
-          tags: ${{ steps.meta.outputs.image_name }}:${{ github.sha }}
+          push: true
+          tags: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/${{ steps.meta.outputs.image_name }}:${{ github.sha }}
           build-args: |
             PYTHON_VERSION=${{ steps.pyver.outputs.value }}
           labels: |
@@ -57,9 +95,30 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Finalize digest refs
+        id: refs_final
+        run: |
+          IMAGE_REPO="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/${{ steps.meta.outputs.image_name }}"
+          IMAGE_REF_TAG="${IMAGE_REPO}:${GITHUB_SHA}"
+          IMAGE_REF_DIGEST="${IMAGE_REPO}@${DIGEST}"
+
+          echo "image_repo=$IMAGE_REPO" >> "$GITHUB_OUTPUT"
+          echo "image_ref_tag=$IMAGE_REF_TAG" >> "$GITHUB_OUTPUT"
+          echo "image_ref_digest=$IMAGE_REF_DIGEST" >> "$GITHUB_OUTPUT"
+
+          printf '%s\n' "$IMAGE_REF_DIGEST" > /tmp/image-by-digest.txt
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          GITHUB_SHA: ${{ github.sha }}
+
+      - name: Pull exact image for smoke test
+        run: docker pull "${IMAGE_REF_TAG}"
+        env:
+          IMAGE_REF_TAG: ${{ steps.refs_final.outputs.image_ref_tag }}
+
       - name: Smoke liveness
         run: |
-          docker run -d --name myapi-main -p 8000:8000 $IMAGE_NAME:$GITHUB_SHA
+          docker run -d --name myapi-main -p 8000:8000 "${IMAGE_REF_TAG}"
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:8000/health/live; then
               exit 0
@@ -69,22 +128,196 @@ jobs:
           docker logs myapi-main
           exit 1
         env:
-          IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
-          GITHUB_SHA: ${{ github.sha }}
+          IMAGE_REF_TAG: ${{ steps.refs_final.outputs.image_ref_tag }}
 
-      - name: Save image tarball
-        run: docker save $IMAGE_NAME:$GITHUB_SHA -o /tmp/${IMAGE_NAME}-${GITHUB_SHA}.tar
+      - name: Show pushed digest
+        run: |
+          echo "IMAGE_BY_DIGEST=${IMAGE_REF_DIGEST}"
+          gcloud artifacts docker images list \
+            "${IMAGE_REPO}" \
+            --include-tags
         env:
-          IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
-          GITHUB_SHA: ${{ github.sha }}
+          IMAGE_REPO: ${{ steps.refs_final.outputs.image_repo }}
+          IMAGE_REF_DIGEST: ${{ steps.refs_final.outputs.image_ref_digest }}
 
-      - name: Upload built image artifact
+      - name: Upload image digest artifact
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ steps.meta.outputs.image_name }}-${{ github.sha }}
-          path: /tmp/${{ steps.meta.outputs.image_name }}-${{ github.sha }}.tar
+          name: image-by-digest-${{ github.sha }}
+          path: /tmp/image-by-digest.txt
           retention-days: 7
 
       - name: Cleanup
         if: always()
         run: docker rm -f myapi-main || true
+
+  deploy-staging:
+    needs: build-main-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: staging
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Python from .python-version
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: '>= 416.0.0'
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Install Pulumi CLI
+        run: curl -fsSL https://get.pulumi.com | sh
+
+      - name: Add Pulumi to PATH
+        run: echo "$HOME/.pulumi/bin" >> "$GITHUB_PATH"
+
+      - name: Login to Pulumi GCS backend
+        run: pulumi login "gs://${{ vars.PULUMI_STATE_BUCKET }}"
+
+      - name: Select staging stack
+        working-directory: infra/service
+        run: pulumi stack select staging --non-interactive
+
+      - name: Feed Pulumi the exact image digest
+        working-directory: infra/service
+        run: |
+          pulumi config set imageByDigest "${IMAGE_BY_DIGEST}" \
+            --stack staging \
+            --plaintext \
+            --non-interactive
+        env:
+          IMAGE_BY_DIGEST: ${{ needs.build-main-image.outputs.image_ref_digest }}
+
+      - name: Preview staging deploy
+        working-directory: infra/service
+        run: pulumi preview --stack staging --non-interactive
+
+      - name: Deploy staging
+        working-directory: infra/service
+        run: pulumi up --stack staging --yes --non-interactive
+
+      - name: Smoke staging live
+        working-directory: infra/service
+        run: |
+          STAGING_URL="$(pulumi stack output serviceUrl --stack staging)"
+          curl -fsS \
+            -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+            "${STAGING_URL}/health/live"
+
+      - name: Smoke staging ready
+        working-directory: infra/service
+        run: |
+          STAGING_URL="$(pulumi stack output serviceUrl --stack staging)"
+          curl -fsS \
+            -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+            "${STAGING_URL}/health/ready"
+
+# name: image-main
+
+# on:
+#   push:
+#     branches: [main]
+#   workflow_dispatch:
+
+# permissions:
+#   contents: read
+
+# concurrency:
+#   group: image-main-${{ github.ref }}
+#   cancel-in-progress: true
+
+# jobs:
+#   build-main-image:
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 25
+
+#     steps:
+#       - name: Check out code
+#         uses: actions/checkout@v5
+
+#       - name: Read Python version for Docker
+#         id: pyver
+#         run: echo "value=$(tr -d '[:space:]' < .python-version)" >> "$GITHUB_OUTPUT"
+
+#       - name: Read image name from pyproject.toml
+#         id: meta
+#         run: |
+#           IMAGE_NAME="$(python - <<'PY'
+#           import tomllib
+#           from pathlib import Path
+
+#           data = tomllib.loads(Path("pyproject.toml").read_text())
+#           print(data["project"]["name"].lower())
+#           PY
+#           )"
+#           echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v4
+
+#       - name: Build immutable image
+#         uses: docker/build-push-action@v7
+#         with:
+#           context: .
+#           push: true
+#           load: true
+#           tags: ${{ steps.meta.outputs.image_name }}:${{ github.sha }}
+#           build-args: |
+#             PYTHON_VERSION=${{ steps.pyver.outputs.value }}
+#           labels: |
+#             org.opencontainers.image.title=${{ steps.meta.outputs.image_name }}
+#             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+#             org.opencontainers.image.revision=${{ github.sha }}
+#           cache-from: type=gha
+#           cache-to: type=gha,mode=max
+
+#       - name: Smoke liveness
+#         run: |
+#           docker run -d --name myapi-main -p 8000:8000 $IMAGE_NAME:$GITHUB_SHA
+#           for i in {1..30}; do
+#             if curl -fsS http://127.0.0.1:8000/health/live; then
+#               exit 0
+#             fi
+#             sleep 1
+#           done
+#           docker logs myapi-main
+#           exit 1
+#         env:
+#           IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
+#           GITHUB_SHA: ${{ github.sha }}
+
+#       - name: Save image tarball
+#         run: docker save $IMAGE_NAME:$GITHUB_SHA -o /tmp/${IMAGE_NAME}-${GITHUB_SHA}.tar
+#         env:
+#           IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
+#           GITHUB_SHA: ${{ github.sha }}
+
+#       - name: Upload built image artifact
+#         uses: actions/upload-artifact@v6
+#         with:
+#           name: ${{ steps.meta.outputs.image_name }}-${{ github.sha }}
+#           path: /tmp/${{ steps.meta.outputs.image_name }}-${{ github.sha }}.tar
+#           retention-days: 7
+
+#       - name: Cleanup
+#         if: always()
+#         run: docker rm -f myapi-main || true
