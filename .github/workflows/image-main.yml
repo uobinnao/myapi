@@ -191,7 +191,7 @@ jobs:
         run: echo "$HOME/.pulumi/bin" >> "$GITHUB_PATH"
 
       - name: Login to Pulumi GCS backend
-        run: pulumi login "gs://${{ vars.PULUMI_STATE_BUCKET }}"
+        run: pulumi login "gs://${{ vars.GCP_PROJECT_ID }}-pulumi-state"
 
       - name: Select staging stack
         working-directory: infra/service
