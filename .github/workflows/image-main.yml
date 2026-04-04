@@ -157,6 +157,8 @@ jobs:
     timeout-minutes: 25
     environment:
       name: staging
+    env:
+    PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
 
     steps:
       - name: Check out code
