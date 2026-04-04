@@ -38,7 +38,7 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
         with:
-          version: '>= 416.0.0'
+          version: ">= 416.0.0"
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
       - name: Configure Docker for Artifact Registry
@@ -158,7 +158,7 @@ jobs:
     environment:
       name: staging
     env:
-    PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
 
     steps:
       - name: Check out code
@@ -183,7 +183,7 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
         with:
-          version: '>= 416.0.0'
+          version: ">= 416.0.0"
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
       - name: Install Pulumi CLI
