@@ -76,14 +76,14 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Start container
-        run: docker run -d --name myapi-ci -p 8000:8000 $IMAGE_NAME:ci
+        run: docker run -d --name myapi-ci -p 8080:8080 $IMAGE_NAME:ci
         env:
           IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
 
       - name: Smoke test liveness
         run: |
           for i in {1..20}; do
-            if curl -fsS http://127.0.0.1:8000/health/live; then
+            if curl -fsS http://localhost:8080/health/live; then
               exit 0
             fi
             sleep 1
