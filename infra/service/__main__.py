@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import tomllib
 
 import pulumi
@@ -18,7 +19,17 @@ def read_app_name_from_pyproject() -> str:
     return data["project"]["name"]
 
 
+def slugify(value: str) -> str:
+    value = value.lower()
+    value = re.sub(r"[._]+", "-", value)
+    value = re.sub(r"[^a-z0-9-]+", "-", value)
+    value = re.sub(r"^-+|-+$", "", value)
+    value = re.sub(r"-{2,}", "-", value)
+    return value
+
+
 app_name = read_app_name_from_pyproject()
+app_slug = slugify(app_name)
 
 cfg = Config()
 gcp_cfg = Config("gcp")
@@ -26,21 +37,14 @@ gcp_cfg = Config("gcp")
 project_id = gcp_cfg.require("project")
 region = gcp_cfg.require("region")
 
-service_name = f"{app_name}-staging" or cfg.get("serviceName")
-artifact_repo_id = app_name or cfg.get("artifactRegistryRepoId")
-image_by_digest = cfg.require(
-    "imageByDigest"
-)  # LOCATION-docker.pkg.dev/.../{repo}@sha256:...
-runtime_sa_id = f"{app_name}-staging-runtime" or cfg.get("runtimeServiceAccountId")
-deployer_principal = cfg.require(
-    "deployerPrincipal"
-)  # serviceAccount:github-myapi-staging@...
+service_name = f"{app_slug}-staging"
+runtime_sa_id = f"{app_slug}-staging-runtime"
+runtime_sa_email = f"{runtime_sa_id}@{project_id}.iam.gserviceaccount.com"
+
+image_by_digest = cfg.require("imageByDigest")
 usda_secret_name = cfg.get("usdaSecretName") or "USDA_API_KEY_STAGING"
-app_env = "staging" or cfg.get("appEnv")
 allow_unauthenticated = cfg.get_bool("allowUnauthenticated") or False
-staging_invoker_member = cfg.get(
-    "stagingInvokerMember"
-)  # optional: user:..., group:..., serviceAccount:...
+staging_invoker_member = cfg.get("stagingInvokerMember")
 
 provider = gcp.Provider(
     "gcp-provider",
@@ -48,80 +52,8 @@ provider = gcp.Provider(
     region=region,
 )
 
-required_services = [
-    "run.googleapis.com",
-    "secretmanager.googleapis.com",
-    "artifactregistry.googleapis.com",
-    "iam.googleapis.com",
-]
-
-service_apis: list[pulumi.Resource] = []
-for svc in required_services:
-    service_apis.append(
-        gcp.projects.Service(
-            svc.replace(".", "-"),
-            project=project_id,
-            service=svc,
-            disable_on_destroy=False,
-            opts=ResourceOptions(provider=provider),
-        )
-    )
-
-base_opts = ResourceOptions(provider=provider, depends_on=service_apis)
-
-runtime_sa = gcp.serviceaccount.Account(
-    "runtime-sa",
-    project=project_id,
-    account_id=runtime_sa_id,
-    display_name=f"{app_name} staging runtime",
-    opts=base_opts,
-)
-
-usda_secret = gcp.secretmanager.Secret(
-    "usda-secret",
-    project=project_id,
-    secret_id=usda_secret_name,
-    replication={"auto": {}},
-    opts=base_opts,
-)
-
-runtime_secret_access = gcp.secretmanager.SecretIamMember(
-    "runtime-secret-access",
-    project=project_id,
-    secret_id=usda_secret.secret_id,
-    role="roles/secretmanager.secretAccessor",
-    member=runtime_sa.email.apply(lambda email: f"serviceAccount:{email}"),
-    opts=ResourceOptions(provider=provider),
-)
-
-deployer_run_developer = gcp.projects.IAMMember(
-    "deployer-run-developer",
-    project=project_id,
-    role="roles/run.developer",
-    member=deployer_principal,
-    opts=ResourceOptions(provider=provider),
-)
-
-deployer_runtime_sa_user = gcp.serviceaccount.IAMMember(
-    "deployer-runtime-sa-user",
-    service_account_id=runtime_sa.name,
-    role="roles/iam.serviceAccountUser",
-    member=deployer_principal,
-    opts=ResourceOptions(provider=provider),
-)
-
-deployer_repo_reader = gcp.artifactregistry.RepositoryIamMember(
-    "deployer-repo-reader",
-    project=project_id,
-    location=region,
-    repository=artifact_repo_id,
-    role="roles/artifactregistry.reader",
-    member=deployer_principal,
-    opts=ResourceOptions(provider=provider),
-)
-
 service_template = gcp.cloudrunv2.ServiceTemplateArgs(
-    service_account=runtime_sa.email,
+    service_account=runtime_sa_email,
     containers=[
         gcp.cloudrunv2.ServiceTemplateContainerArgs(
             image=image_by_digest,
@@ -131,13 +63,13 @@ service_template = gcp.cloudrunv2.ServiceTemplateArgs(
             envs=[
                 gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
                     name="APP_ENV",
-                    value=app_env,
+                    value="staging",
                 ),
                 gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
                     name="USDA_API_KEY",
                     value_source=gcp.cloudrunv2.ServiceTemplateContainerEnvValueSourceArgs(
                         secret_key_ref=gcp.cloudrunv2.ServiceTemplateContainerEnvValueSourceSecretKeyRefArgs(
-                            secret=usda_secret.secret_id,
+                            secret=usda_secret_name,
                             version="latest",
                         )
                     ),
@@ -166,15 +98,7 @@ service = gcp.cloudrunv2.Service(
     ingress="INGRESS_TRAFFIC_ALL",
     invoker_iam_disabled=allow_unauthenticated,
     template=service_template,
-    opts=ResourceOptions(
-        provider=provider,
-        depends_on=[
-            runtime_secret_access,
-            deployer_run_developer,
-            deployer_runtime_sa_user,
-            deployer_repo_reader,
-        ],
-    ),
+    opts=ResourceOptions(provider=provider),
 )
 
 if staging_invoker_member and not allow_unauthenticated:
@@ -191,6 +115,6 @@ if staging_invoker_member and not allow_unauthenticated:
 pulumi.export("appName", app_name)
 pulumi.export("serviceName", service.name)
 pulumi.export("serviceUrl", service.uri)
-pulumi.export("runtimeServiceAccountEmail", runtime_sa.email)
-pulumi.export("secretName", usda_secret.secret_id)
+pulumi.export("runtimeServiceAccountEmail", runtime_sa_email)
+pulumi.export("secretName", usda_secret_name)
 pulumi.export("deployedImage", image_by_digest)
