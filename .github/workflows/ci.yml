@@ -76,7 +76,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Start container
-        run: docker run -d --name myapi-ci -p 8000:8000 $IMAGE_NAME:ci
+        run: docker run -d --name myapi-ci -p 8080:8080 $IMAGE_NAME:ci
         env:
           IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
 
