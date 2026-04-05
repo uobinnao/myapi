@@ -83,7 +83,7 @@ jobs:
       - name: Smoke test liveness
         run: |
           for i in {1..20}; do
-            if curl -fsS http://127.0.0.1:8000/health/live; then
+            if curl -fsS http://127.0.0.1:8080/health/live; then
               exit 0
             fi
             sleep 1
