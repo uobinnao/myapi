@@ -1,0 +1,16 @@
+config:
+  gcp:project: i1ncx3d2imnb1k
+  gcp:region: us-central1
+  myapi-service:usdaSecretName: USDA_API_KEY_PROD
+  myapi-service:usdaSecretVersion: latest
+  myapi-service:prodInvokerMember: user:tnkvie@gmail.com
+  myapi-service:deployerMember: serviceAccount:github-myapi-deployer@i1ncx3d2imnb1k.iam.gserviceaccount.com
+  myapi-service:minInstanceCount: "0"
+  myapi-service:maxInstanceCount: "1"
+  myapi-service:timeout: 60s
+  myapi-service:cpuIdle: "true"
+  myapi-service:startupCpuBoost: "false"
+  myapi-service:loggingRetentionDays: "30"
+  myapi-service:monthlyBudgetUsd: "10"
+  myapi-service:billingAccountId: 01BAD1-548502-59B48D
+  myapi-service:budgetAlertEmail: tnkvie@gmail.com
