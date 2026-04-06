@@ -9,3 +9,8 @@ config:
   myapi-service:usdaSecretName: USDA_API_KEY_STAGING
   myapi-service:deployerPrincipal: serviceAccount:github-myapi-staging@i1ncx3d2imnb1k.iam.gserviceaccount.com
   myapi-service:stagingInvokerMember: user:tnkvie@gmail.com
+  myapi-service:minInstanceCount: "0"
+  myapi-service:maxInstanceCount: "1"
+  myapi-service:timeout: 60s
+  myapi-service:cpuIdle: "true"
+  myapi-service:startupCpuBoost: "false"
