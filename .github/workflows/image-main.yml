@@ -242,3 +242,95 @@ jobs:
           curl -fsS \
             -H "Authorization: Bearer ${{ steps.smoke_auth.outputs.id_token }}" \
             "${{ steps.staging.outputs.url }}/health/ready"
+
+  deploy-prod:
+    needs: [build-main-image, deploy-staging]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: production
+    env:
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Python from .python-version
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: ">= 416.0.0"
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Install Pulumi CLI
+        run: curl -fsSL https://get.pulumi.com | sh
+
+      - name: Add Pulumi to PATH
+        run: echo "$HOME/.pulumi/bin" >> "$GITHUB_PATH"
+
+      - name: Login to Pulumi GCS backend
+        run: pulumi login "gs://${{ vars.GCP_PROJECT_ID }}-pulumi-state"
+
+      - name: Select prod stack
+        working-directory: infra/service
+        run: pulumi stack select prod --non-interactive
+
+      - name: Feed Pulumi the exact image digest
+        working-directory: infra/service
+        run: |
+          pulumi config set imageByDigest "${IMAGE_BY_DIGEST}" \
+            --stack prod \
+            --plaintext \
+            --non-interactive
+        env:
+          IMAGE_BY_DIGEST: ${{ needs.build-main-image.outputs.image_ref_digest }}
+
+      - name: Preview prod deploy
+        working-directory: infra/service
+        run: pulumi preview --stack prod --non-interactive
+
+      - name: Deploy prod
+        working-directory: infra/service
+        run: pulumi up --stack prod --yes --non-interactive
+
+      - name: Read prod URL
+        id: prod
+        working-directory: infra/service
+        run: echo "url=$(pulumi stack output serviceUrl --stack prod)" >> "$GITHUB_OUTPUT"
+
+      - name: Mint ID token for prod smoke
+        id: prod_smoke_auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ steps.prod.outputs.url }}
+
+      - name: Smoke prod live
+        run: |
+          curl -fsS \
+            -H "Authorization: Bearer ${{ steps.prod_smoke_auth.outputs.id_token }}" \
+            "${{ steps.prod.outputs.url }}/health/live"
+
+      - name: Smoke prod ready
+        run: |
+          curl -fsS \
+            -H "Authorization: Bearer ${{ steps.prod_smoke_auth.outputs.id_token }}" \
+            "${{ steps.prod.outputs.url }}/health/ready"
