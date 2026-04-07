@@ -14,3 +14,6 @@ config:
   myapi-service:timeout: 60s
   myapi-service:cpuIdle: "true"
   myapi-service:startupCpuBoost: "false"
+  myapi-service:runtimeServiceAccountEmail: myapi-staging-runtime@i1ncx3d2imnb1k.iam.gserviceaccount.com
+  myapi-service:usdaSecretVersion: latest
+  myapi-service:invokerMember: user:tnkvie@gmail.com
