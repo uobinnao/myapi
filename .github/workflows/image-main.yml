@@ -33,7 +33,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_STAGING }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
@@ -174,11 +174,12 @@ jobs:
         with:
           enable-cache: true
 
+      # deploy-staging
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_STAGING }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
@@ -227,7 +228,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_STAGING }}
           token_format: id_token
           id_token_audience: ${{ steps.staging.outputs.url }}
 
@@ -270,7 +271,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_PROD }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
@@ -319,7 +320,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_PROD }}
           token_format: id_token
           id_token_audience: ${{ steps.prod.outputs.url }}
 

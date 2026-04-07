@@ -68,7 +68,7 @@ runtime_service_account_email = (
 allow_unauthenticated = cfg_bool(cfg, "allowUnauthenticated", False)
 
 # Supports both the new generic key and your old stack-specific key.
-invoker_member = cfg.get(f"{stack}InvokerMember")
+invoker_member = cfg.get("invokerMember") or cfg.get(f"{stack}InvokerMember")
 
 container_port = cfg_int(cfg, "containerPort", 8080)
 min_instance_count = cfg_int(cfg, "minInstanceCount", default_min_instances)

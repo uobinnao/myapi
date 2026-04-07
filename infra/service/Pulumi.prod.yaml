@@ -4,4 +4,11 @@ config:
   myapi-service:usdaSecretName: USDA_API_KEY_PROD
   myapi-service:usdaSecretVersion: latest
   myapi-service:prodInvokerMember: user:tnkvie@gmail.com
-  myapi-service:deployerMember: serviceAccount:github-myapi-deployer@i1ncx3d2imnb1k.iam.gserviceaccount.com
+  myapi-service:deployerMember: serviceAccount:github-myapi-prod-deployer@i1ncx3d2imnb1k.iam.gserviceaccount.com
+  myapi-service:runtimeServiceAccountEmail: myapi-prod-runtime@i1ncx3d2imnb1k.iam.gserviceaccount.com
+  myapi-service:invokerMember: user:tnkvie@gmail.com
+  myapi-service:minInstanceCount: "0"
+  myapi-service:maxInstanceCount: "1"
+  myapi-service:timeout: 60s
+  myapi-service:cpuIdle: "true"
+  myapi-service:startupCpuBoost: "false"
