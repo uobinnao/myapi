@@ -122,6 +122,29 @@ jobs:
           IMAGE_REF_DIGEST="${{ steps.meta.outputs.image_repo }}@${{ steps.build.outputs.digest }}"
           echo "image_ref_digest=$IMAGE_REF_DIGEST" >> "$GITHUB_OUTPUT"
 
+      - name: Smoke preview container locally
+        run: |
+          docker run -d --name myapi-preview \
+            -e PORT=8080 \
+            -p 8080:8080 \
+            "${IMAGE_REF_TAG}"
+
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8080/health/live; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          docker logs myapi-preview
+          exit 1
+        env:
+          IMAGE_REF_TAG: ${{ steps.meta.outputs.image_ref_tag }}
+
+      - name: Cleanup preview container
+        if: always()
+        run: docker rm -f myapi-preview || true
+
       - name: Install Pulumi CLI
         run: curl -fsSL https://get.pulumi.com | sh
 
