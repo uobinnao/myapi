@@ -87,7 +87,7 @@ jobs:
 
           IMAGE_REPO="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/${IMAGE_NAME}"
           IMAGE_REF_TAG="${IMAGE_REPO}:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}"
-          RUNTIME_SA_EMAIL="${PROJECT_SLUG}-staging-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com"
+          RUNTIME_SA_EMAIL="${PROJECT_SLUG}-preview-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com"
 
           echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
           echo "project_slug=$PROJECT_SLUG" >> "$GITHUB_OUTPUT"
@@ -159,7 +159,7 @@ jobs:
             --plaintext \
             --non-interactive
 
-          pulumi config set usdaSecretName "USDA_API_KEY_STAGING" \
+          pulumi config set usdaSecretName "USDA_API_KEY_PREVIEW" \
             --stack "${STACK_NAME}" \
             --plaintext \
             --non-interactive
