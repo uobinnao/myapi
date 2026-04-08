@@ -13,3 +13,4 @@ config:
   myapi-service:cpuIdle: "true"
   myapi-service:startupCpuBoost: "false"
   myapi-service:publicAccess: "true"
+encryptionsalt: v1:kkywKFvqL9I=:v1:Sanhj/P6m6CCHw2W:cBiXzdWEy9awgC3RepQrEZc2ITwp8w==
