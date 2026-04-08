@@ -125,9 +125,11 @@ jobs:
       - name: Smoke preview container locally
         run: |
           docker run -d --name myapi-preview \
-            -e PORT=8080 \
-            -p 8080:8080 \
-            "${IMAGE_REF_TAG}"
+          -e PORT=8080 \
+          -e APP_ENV=preview \
+          -e USDA_API_KEY=dummy \
+          -p 8080:8080 \
+          "${IMAGE_REF_TAG}"
 
           for i in {1..30}; do
             if curl -fsS http://localhost:8080/health/live; then

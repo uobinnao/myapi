@@ -118,7 +118,13 @@ jobs:
 
       - name: Smoke liveness
         run: |
-          docker run -d --name myapi-main -p 8080:8080 "${IMAGE_REF_TAG}"
+          docker run -d --name myapi-main \
+            -e PORT=8080 \
+            -e APP_ENV=staging \
+            -e USDA_API_KEY=dummy \
+            -p 8080:8080 \
+            "${IMAGE_REF_TAG}"
+
           for i in {1..30}; do
             if curl -fsS http://localhost:8080/health/live; then
               exit 0
@@ -174,7 +180,6 @@ jobs:
         with:
           enable-cache: true
 
-      # deploy-staging
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
