@@ -31,8 +31,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
-    PATH="/app/.venv/bin:$PATH" \
-    PORT=8080
+    PATH="/app/.venv/bin:$PATH"
 
 RUN useradd --create-home --shell /usr/sbin/nologin appuser
 
