@@ -35,8 +35,9 @@ jobs:
         id: pyver
         run: echo "value=$(tr -d '[:space:]' < .python-version)" >> "$GITHUB_OUTPUT"
 
-      - name: Read image name from pyproject.toml
+      - name: Read app metadata from pyproject.toml
         id: meta
+        shell: bash
         run: |
           IMAGE_NAME="$(python - <<'PY'
           import tomllib
@@ -46,7 +47,15 @@ jobs:
           print(data["project"]["name"].lower())
           PY
           )"
+
+          PROJECT_SLUG="$(
+            printf '%s' "$IMAGE_NAME" |
+              tr '[:upper:]' '[:lower:]' |
+              sed -E 's/[._]+/-/g; s/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//; s/-{2,}/-/g'
+          )"
+
           echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+          echo "project_slug=$PROJECT_SLUG" >> "$GITHUB_OUTPUT"
 
       - name: Sync dependencies
         run: uv sync --frozen
@@ -76,9 +85,14 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Start container
-        run: docker run -d --name myapi-ci -p 8080:8080 $IMAGE_NAME:ci
+        run: |
+          docker run -d \
+            --name "${CONTAINER_NAME}" \
+            -p 8080:8080 \
+            "${IMAGE_NAME}:ci"
         env:
           IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
+          CONTAINER_NAME: ${{ steps.meta.outputs.project_slug }}-ci
 
       - name: Smoke test liveness
         run: |
@@ -88,13 +102,19 @@ jobs:
             fi
             sleep 1
           done
-          docker logs myapi-ci
+          docker logs "${CONTAINER_NAME}"
           exit 1
+        env:
+          CONTAINER_NAME: ${{ steps.meta.outputs.project_slug }}-ci
 
       - name: Show logs on failure
         if: failure()
-        run: docker logs myapi-ci || true
+        run: docker logs "${CONTAINER_NAME}" || true
+        env:
+          CONTAINER_NAME: ${{ steps.meta.outputs.project_slug }}-ci
 
       - name: Cleanup
         if: always()
-        run: docker rm -f myapi-ci || true
+        run: docker rm -f "${CONTAINER_NAME}" || true
+        env:
+          CONTAINER_NAME: ${{ steps.meta.outputs.project_slug }}-ci

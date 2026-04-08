@@ -20,6 +20,7 @@ jobs:
 
     outputs:
       image_name: ${{ steps.meta.outputs.image_name }}
+      project_slug: ${{ steps.meta.outputs.project_slug }}
       image_repo: ${{ steps.refs_final.outputs.image_repo }}
       image_ref_tag: ${{ steps.refs_final.outputs.image_ref_tag }}
       image_ref_digest: ${{ steps.refs_final.outputs.image_ref_digest }}
@@ -48,8 +49,9 @@ jobs:
         id: pyver
         run: echo "value=$(tr -d '[:space:]' < .python-version)" >> "$GITHUB_OUTPUT"
 
-      - name: Read image name from pyproject.toml
+      - name: Read app metadata from pyproject.toml
         id: meta
+        shell: bash
         run: |
           IMAGE_NAME="$(python - <<'PY'
           import tomllib
@@ -59,7 +61,15 @@ jobs:
           print(data["project"]["name"].lower())
           PY
           )"
+
+          PROJECT_SLUG="$(
+            printf '%s' "$IMAGE_NAME" |
+              tr '[:upper:]' '[:lower:]' |
+              sed -E 's/[._]+/-/g; s/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//; s/-{2,}/-/g'
+          )"
+
           echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+          echo "project_slug=$PROJECT_SLUG" >> "$GITHUB_OUTPUT"
 
       - name: Compute Artifact Registry refs
         id: refs
@@ -118,17 +128,24 @@ jobs:
 
       - name: Smoke liveness
         run: |
-          docker run -d --name myapi-main -p 8080:8080 "${IMAGE_REF_TAG}"
+          docker run -d --name "${CONTAINER_NAME}" \
+            -e PORT=8080 \
+            -e APP_ENV=staging \
+            -e USDA_API_KEY=dummy \
+            -p 8080:8080 \
+            "${IMAGE_REF_TAG}"
+
           for i in {1..30}; do
             if curl -fsS http://localhost:8080/health/live; then
               exit 0
             fi
             sleep 1
           done
-          docker logs myapi-main
+          docker logs "${CONTAINER_NAME}"
           exit 1
         env:
           IMAGE_REF_TAG: ${{ steps.refs_final.outputs.image_ref_tag }}
+          CONTAINER_NAME: ${{ steps.meta.outputs.project_slug }}-main
 
       - name: Show pushed digest
         run: |
@@ -149,7 +166,9 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: docker rm -f myapi-main || true
+        run: docker rm -f "${CONTAINER_NAME}" || true
+        env:
+          CONTAINER_NAME: ${{ steps.meta.outputs.project_slug }}-main
 
   deploy-staging:
     needs: build-main-image
@@ -174,7 +193,6 @@ jobs:
         with:
           enable-cache: true
 
-      # deploy-staging
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:

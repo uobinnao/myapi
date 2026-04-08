@@ -22,24 +22,48 @@ jobs:
 
     env:
       PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-      REGION: us-central1
-      SERVICE_NAME: myapi-pr-${{ github.event.pull_request.number }}
+      REGION: ${{ vars.GCP_REGION }}
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Check out code
+        uses: actions/checkout@v5
 
-      - id: auth
+      - name: Read app metadata from pyproject.toml
+        id: meta
+        shell: bash
+        run: |
+          IMAGE_NAME="$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          data = tomllib.loads(Path("pyproject.toml").read_text())
+          print(data["project"]["name"].lower())
+          PY
+          )"
+
+          PROJECT_SLUG="$(
+            printf '%s' "$IMAGE_NAME" |
+              tr '[:upper:]' '[:lower:]' |
+              sed -E 's/[._]+/-/g; s/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//; s/-{2,}/-/g'
+          )"
+
+          SERVICE_NAME="${PROJECT_SLUG}-pr-${{ github.event.pull_request.number }}"
+
+          echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+          echo "project_slug=$PROJECT_SLUG" >> "$GITHUB_OUTPUT"
+          echo "service_name=$SERVICE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
-          project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_STAGING }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
         with:
-          project_id: ${{ env.PROJECT_ID }}
-          version: ">= 363.0.0"
+          version: ">= 416.0.0"
+          project_id: ${{ vars.GCP_PROJECT_ID }}
 
       - name: Delete preview service if it exists
         shell: bash
@@ -54,3 +78,5 @@ jobs:
           else
             echo "Service $SERVICE_NAME does not exist; nothing to delete."
           fi
+        env:
+          SERVICE_NAME: ${{ steps.meta.outputs.service_name }}
