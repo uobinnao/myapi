@@ -12,3 +12,4 @@ config:
   myapi-service:timeout: 60s
   myapi-service:cpuIdle: "true"
   myapi-service:startupCpuBoost: "false"
+  myapi-service:publicAccess: "true"
