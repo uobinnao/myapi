@@ -19,21 +19,33 @@ jobs:
       github.event.pull_request.draft == false &&
       contains(github.event.pull_request.labels.*.name, 'preview')
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     environment:
       name: preview/pr-${{ github.event.pull_request.number }}
-      url: ${{ steps.deploy.outputs.url }}
+      url: ${{ steps.preview_url.outputs.url }}
 
     env:
       PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       REGION: ${{ vars.GCP_REGION }}
       AR_REPO: ${{ vars.GCP_AR_REPO }}
+      STACK_NAME: preview-pr-${{ github.event.pull_request.number }}
       SERVICE_NAME: myapi-pr-${{ github.event.pull_request.number }}
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
 
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      - name: Set up Python from .python-version
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -50,8 +62,13 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
 
-      - name: Read image name from pyproject.toml
+      - name: Read Python version for Docker
+        id: pyver
+        run: echo "value=$(tr -d '[:space:]' < .python-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Read app metadata
         id: meta
+        shell: bash
         run: |
           IMAGE_NAME="$(python - <<'PY'
           import tomllib
@@ -61,18 +78,22 @@ jobs:
           print(data["project"]["name"].lower())
           PY
           )"
+
+          PROJECT_SLUG="$(
+            printf '%s' "$IMAGE_NAME" |
+              tr '[:upper:]' '[:lower:]' |
+              sed -E 's/[._]+/-/g; s/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//; s/-{2,}/-/g'
+          )"
+
+          IMAGE_REPO="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/${IMAGE_NAME}"
+          IMAGE_REF_TAG="${IMAGE_REPO}:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}"
+          RUNTIME_SA_EMAIL="${PROJECT_SLUG}-staging-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com"
+
           echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
-
-      - name: Compute image ref
-        id: refs
-        run: |
-          IMAGE_REPO="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/${{ steps.meta.outputs.image_name }}"
-          IMAGE_TAG="pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}"
-          IMAGE_REF="${IMAGE_REPO}:${IMAGE_TAG}"
-
+          echo "project_slug=$PROJECT_SLUG" >> "$GITHUB_OUTPUT"
           echo "image_repo=$IMAGE_REPO" >> "$GITHUB_OUTPUT"
-          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
-          echo "image_ref=$IMAGE_REF" >> "$GITHUB_OUTPUT"
+          echo "image_ref_tag=$IMAGE_REF_TAG" >> "$GITHUB_OUTPUT"
+          echo "runtime_sa_email=$RUNTIME_SA_EMAIL" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -83,7 +104,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ steps.refs.outputs.image_ref }}
+          tags: ${{ steps.meta.outputs.image_ref_tag }}
+          build-args: |
+            PYTHON_VERSION=${{ steps.pyver.outputs.value }}
           labels: |
             org.opencontainers.image.title=${{ steps.meta.outputs.image_name }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -92,13 +115,79 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - id: deploy
-        uses: google-github-actions/deploy-cloudrun@v3
-        with:
-          service: ${{ env.SERVICE_NAME }}
-          image: ${{ steps.refs.outputs.image_ref }}
-          region: ${{ env.REGION }}
-          project_id: ${{ env.PROJECT_ID }}
-          env_vars: |-
-            APP_ENV=preview
-            PR_NUMBER=${{ github.event.pull_request.number }}
+      - name: Compute immutable image ref
+        id: refs
+        shell: bash
+        run: |
+          IMAGE_REF_DIGEST="${{ steps.meta.outputs.image_repo }}@${{ steps.build.outputs.digest }}"
+          echo "image_ref_digest=$IMAGE_REF_DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Install Pulumi CLI
+        run: curl -fsSL https://get.pulumi.com | sh
+
+      - name: Add Pulumi to PATH
+        run: echo "$HOME/.pulumi/bin" >> "$GITHUB_PATH"
+
+      - name: Login to Pulumi GCS backend
+        run: pulumi login "gs://${{ vars.GCP_PROJECT_ID }}-pulumi-state"
+
+      - name: Select preview stack
+        working-directory: infra/service
+        run: pulumi stack select "${STACK_NAME}" --create --non-interactive
+
+      - name: Configure preview stack
+        working-directory: infra/service
+        env:
+          IMAGE_BY_DIGEST: ${{ steps.refs.outputs.image_ref_digest }}
+          RUNTIME_SA_EMAIL: ${{ steps.meta.outputs.runtime_sa_email }}
+        run: |
+          pulumi config set gcp:project "${PROJECT_ID}" --stack "${STACK_NAME}" --non-interactive
+          pulumi config set gcp:region "${REGION}" --stack "${STACK_NAME}" --non-interactive
+
+          pulumi config set imageByDigest "${IMAGE_BY_DIGEST}" \
+            --stack "${STACK_NAME}" \
+            --plaintext \
+            --non-interactive
+
+          pulumi config set runtimeServiceAccountEmail "${RUNTIME_SA_EMAIL}" \
+            --stack "${STACK_NAME}" \
+            --plaintext \
+            --non-interactive
+
+          pulumi config set serviceName "${SERVICE_NAME}" \
+            --stack "${STACK_NAME}" \
+            --plaintext \
+            --non-interactive
+
+          pulumi config set usdaSecretName "USDA_API_KEY_STAGING" \
+            --stack "${STACK_NAME}" \
+            --plaintext \
+            --non-interactive
+
+          pulumi config set usdaSecretVersion "latest" \
+            --stack "${STACK_NAME}" \
+            --plaintext \
+            --non-interactive
+
+          pulumi config set publicAccess true \
+            --stack "${STACK_NAME}" \
+            --non-interactive
+
+          pulumi config set minInstanceCount 0 --stack "${STACK_NAME}" --non-interactive
+          pulumi config set maxInstanceCount 1 --stack "${STACK_NAME}" --non-interactive
+          pulumi config set timeout 60s --stack "${STACK_NAME}" --non-interactive
+          pulumi config set cpuIdle true --stack "${STACK_NAME}" --non-interactive
+          pulumi config set startupCpuBoost false --stack "${STACK_NAME}" --non-interactive
+
+      - name: Preview preview-stack deploy
+        working-directory: infra/service
+        run: pulumi preview --stack "${STACK_NAME}" --non-interactive
+
+      - name: Deploy preview stack
+        working-directory: infra/service
+        run: pulumi up --stack "${STACK_NAME}" --yes --non-interactive
+
+      - name: Read preview URL
+        id: preview_url
+        working-directory: infra/service
+        run: echo "url=$(pulumi stack output serviceUrl --stack "${STACK_NAME}")" >> "$GITHUB_OUTPUT"
