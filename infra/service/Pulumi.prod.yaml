@@ -2,7 +2,7 @@ config:
   gcp:project: i1ncx3d2imnb1k
   gcp:region: us-central1
   myapi-service:usdaSecretName: USDA_API_KEY_PROD
-  myapi-service:usdaSecretVersion: latest
+  myapi-service:usdaSecretVersion: "14"
   myapi-service:prodInvokerMember: user:tnkvie@gmail.com
   myapi-service:deployerMember: serviceAccount:github-myapi-prod-deployer@i1ncx3d2imnb1k.iam.gserviceaccount.com
   myapi-service:runtimeServiceAccountEmail: myapi-prod-runtime@i1ncx3d2imnb1k.iam.gserviceaccount.com
