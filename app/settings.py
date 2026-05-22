@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import tomllib
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
-import tomllib
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -42,6 +42,9 @@ class Settings(BaseSettings):
 
     host: str = "0.0.0.0"
     port: int = 8000
+
+    rapidapi_proxy_secret: str | None = None
+    internal_app_token: str | None = None
 
     cors_allow_origins: list[str] = Field(
         default_factory=lambda: [
