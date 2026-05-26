@@ -3,7 +3,7 @@ config:
   gcp:region: us-central1
   myapi-service:runtimeServiceAccountEmail: myapi-prod-runtime@i1ncx3d2imnb1k.iam.gserviceaccount.com
   myapi-service:usdaSecretName: USDA_API_KEY_PROD
-  myapi-service:usdaSecretVersion: "22"
+  myapi-service:usdaSecretVersion: "23"
   myapi-service:deployerMember: serviceAccount:github-myapi-prod-deployer@i1ncx3d2imnb1k.iam.gserviceaccount.com
   myapi-service:publicAccess: "true"
   myapi-service:minInstanceCount: "0"
@@ -11,3 +11,4 @@ config:
   myapi-service:timeout: 60s
   myapi-service:cpuIdle: "true"
   myapi-service:startupCpuBoost: "false"
+encryptionsalt: v1:xuH9d1eZcyg=:v1:MP5uMKzHKlLOoZop:RhX0586mBlKG4d7SrkhSgN5Om1dTQQ==
