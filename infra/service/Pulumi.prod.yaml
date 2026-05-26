@@ -3,7 +3,7 @@ config:
   gcp:region: us-central1
   myapi-service:runtimeServiceAccountEmail: myapi-prod-runtime@i1ncx3d2imnb1k.iam.gserviceaccount.com
   myapi-service:usdaSecretName: USDA_API_KEY_PROD
-  myapi-service:usdaSecretVersion: "21"
+  myapi-service:usdaSecretVersion: "22"
   myapi-service:deployerMember: serviceAccount:github-myapi-prod-deployer@i1ncx3d2imnb1k.iam.gserviceaccount.com
   myapi-service:publicAccess: "true"
   myapi-service:minInstanceCount: "0"
