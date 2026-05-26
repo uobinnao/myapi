@@ -228,6 +228,27 @@ jobs:
         env:
           IMAGE_BY_DIGEST: ${{ needs.build-main-image.outputs.image_ref_digest }}
 
+      - name: Guard Pulumi owns staging Cloud Run service
+        working-directory: infra/service
+        run: |
+          set -euo pipefail
+
+          STACK="staging"
+          PROJECT_ID="${{ vars.GCP_PROJECT_ID }}"
+          REGION="${{ vars.GCP_REGION }}"
+          SERVICE_NAME="${{ needs.build-main-image.outputs.project_slug }}-staging"
+
+          if gcloud run services describe "$SERVICE_NAME" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" >/dev/null 2>&1; then
+
+            if ! pulumi stack export --stack "$STACK" | grep -q 'gcp:cloudrunv2/service:Service::service'; then
+              echo "::error::Cloud Run service $SERVICE_NAME exists, but Pulumi stack $STACK does not own it."
+              echo "::error::Run:"
+              echo "pulumi import gcp:cloudrunv2/service:Service service projects/$PROJECT_ID/locations/$REGION/services/$SERVICE_NAME"
+              exit 1
+            fi
+          fi
       - name: Preview staging deploy
         working-directory: infra/service
         run: pulumi preview --stack staging --non-interactive
@@ -319,6 +340,28 @@ jobs:
             --non-interactive
         env:
           IMAGE_BY_DIGEST: ${{ needs.build-main-image.outputs.image_ref_digest }}
+
+      - name: Guard Pulumi owns prod Cloud Run service
+        working-directory: infra/service
+        run: |
+          set -euo pipefail
+
+          STACK="prod"
+          PROJECT_ID="${{ vars.GCP_PROJECT_ID }}"
+          REGION="${{ vars.GCP_REGION }}"
+          SERVICE_NAME="${{ needs.build-main-image.outputs.project_slug }}-prod"
+
+          if gcloud run services describe "$SERVICE_NAME" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" >/dev/null 2>&1; then
+
+            if ! pulumi stack export --stack "$STACK" | grep -q 'gcp:cloudrunv2/service:Service::service'; then
+              echo "::error::Cloud Run service $SERVICE_NAME exists, but Pulumi stack $STACK does not own it."
+              echo "::error::Run:"
+              echo "pulumi import gcp:cloudrunv2/service:Service service projects/$PROJECT_ID/locations/$REGION/services/$SERVICE_NAME"
+              exit 1
+            fi
+          fi
 
       - name: Preview prod deploy
         working-directory: infra/service
