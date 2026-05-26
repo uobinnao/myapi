@@ -3,10 +3,11 @@ config:
   gcp:region: us-central1
   myapi-service:runtimeServiceAccountEmail: myapi-staging-runtime@i1ncx3d2imnb1k.iam.gserviceaccount.com
   myapi-service:usdaSecretName: USDA_API_KEY_STAGING
-  myapi-service:usdaSecretVersion: "11"
+  myapi-service:usdaSecretVersion: "14"
   myapi-service:invokerMember: user:tnkvie@gmail.com
   myapi-service:minInstanceCount: "0"
   myapi-service:maxInstanceCount: "1"
   myapi-service:timeout: 60s
   myapi-service:cpuIdle: "true"
   myapi-service:startupCpuBoost: "false"
+encryptionsalt: v1:68vr7kPk1Zk=:v1:F3rcSwx2X3Vz9a7d:+vpnqiOkBqQ3KTXF1EzR54UbkiAOig==
