@@ -15,4 +15,4 @@ features/meta  = root + health endpoints
 features/foods = food endpoint + USDA logic
 
 
-preview retest; run staging then prod then preview bootstrap
+retest; run staging then prod then preview bootstrap; deploy staging first then preview
