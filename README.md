@@ -1,4 +1,4 @@
-Test api build
+Test api build - built for GCP not db
 
 to run dev server: uv run fastapi dev
 
