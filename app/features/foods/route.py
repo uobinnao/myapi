@@ -6,7 +6,7 @@ from app.features.foods.service import search_foods_service
 from app.features.foods.validators import validate_food_type
 from app.limiter import limiter
 from app.problem import PROBLEM_RESPONSES
-from app.schema import FoodsResponse
+from app.features.foods.schema import FoodsResponse
 from app.security.rapidapi import enforce_trusted_caller
 from app.settings import Settings, get_settings
 from app.state import AppState, get_app_state

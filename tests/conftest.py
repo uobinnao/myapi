@@ -15,6 +15,9 @@ def override_settings() -> Iterator[None]:
             app_version="test",
             app_env="dev",
             usda_api_key=None,
+            local_database_url="postgres+psycopg://fooduser:foodpass@localhost:5432/food",
+            database_url_direct="postgresql+psycopg://food_owner:npg_mofC4ls0vUqj@ep-frosty-sound-ap4yq2q1.c-7.us-east-1.aws.neon.tech/food",
+            database_url_pooled="postgresql+psycopg://food_owner:npg_mofC4ls0vUqj@ep-frosty-sound-ap4yq2q1-pooler.c-7.us-east-1.aws.neon.tech/food",
         )
 
     app.dependency_overrides[get_settings] = _override_settings

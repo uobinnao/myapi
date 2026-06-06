@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     app_version: str = PROJECT_VERSION
     app_env: Literal["dev", "preview", "staging", "prod"] = "dev"
 
+    local_database_url: str
+    database_url_direct: str
+    database_url_pooled: str
+
     usda_base_url: str = "https://api.nal.usda.gov/fdc/v1"
     usda_api_key: str | None = None
 
@@ -56,7 +60,10 @@ class Settings(BaseSettings):
         ]
     )
 
+    git_sha: str = Field(default="local", validation_alias="GIT_SHA")
+    release_id: str = Field(default="local", validation_alias="RELEASE_ID")
+
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings()  # pyright: ignore[reportCallIssue]

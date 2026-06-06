@@ -3,19 +3,30 @@ from time import monotonic
 
 import httpx
 
-from app.schema import ApiInfo, EndpointDoc, HealthResponse, HealthServices
+from app.features.meta.schema import (
+    ApiInfo,
+    EndpointDoc,
+    HealthResponse,
+    HealthServices,
+)
 from app.settings import Settings
 from app.state import AppState
+
+from app.db.database import engine
+from app.db.health import check_database
 
 
 def build_api_info(base_url: str, cfg: Settings) -> ApiInfo:
     return ApiInfo(
         name=cfg.app_name,
         version=cfg.app_version,
+        environment=cfg.app_env,
+        git_sha=cfg.git_sha,
+        release_id=cfg.release_id,
         description="A REST API to fetch food information from USDA FoodData Central.",
-        baseUrl=base_url,
-        docsUrl=f"{base_url}/docs",
-        openapiUrl=f"{base_url}/openapi.json",
+        base_url=base_url,
+        docs_url=f"{base_url}/docs",
+        openapi_url=f"{base_url}/openapi.json",
         endpoints={
             "root": EndpointDoc(path="/", method="GET", description="API metadata"),
             "health_live": EndpointDoc(
@@ -42,42 +53,65 @@ def build_api_info(base_url: str, cfg: Settings) -> ApiInfo:
     )
 
 
-async def check_usda_dependency(
+async def check_readiness(cfg: Settings) -> tuple[HealthServices, bool]:
+    database_status = await check_database(engine)
+
+    usda_key_status = "configured" if cfg.usda_api_key else "missing"
+
+    services = HealthServices(
+        api="healthy",
+        database=database_status,
+        usda_api_key=usda_key_status,
+        usda_api="not_checked",
+    )
+
+    ready = database_status == "healthy" and bool(cfg.usda_api_key)
+    return services, ready
+
+
+async def check_dependencies(
     cfg: Settings,
     state: AppState,
 ) -> tuple[HealthServices, bool]:
+    database_status = await check_database(engine)
+
     services = HealthServices(
         api="healthy",
+        database=database_status,
         usda_api_key="configured" if cfg.usda_api_key else "missing",
         usda_api="not_configured",
     )
 
-    if not cfg.usda_api_key:
-        return services, False
+    db_ready = database_status == "healthy"
 
-    try:
-        response = await state.http.get(
-            "/foods/search",
-            params={
-                "api_key": cfg.usda_api_key,
-                "query": "test",
-                "pageSize": 1,
-            },
-            timeout=httpx.Timeout(3.0, connect=1.5),
-        )
-    except httpx.TimeoutException:
-        services.usda_api = "timeout"
-        return services, False
-    except httpx.RequestError:
-        services.usda_api = "unreachable"
-        return services, False
+    # Optional: USDA check
+    usda_ready = True
 
-    if response.is_success:
-        services.usda_api = "healthy"
-        return services, True
+    if cfg.usda_api_key:
+        try:
+            response = await state.http.get(
+                "/foods/search",
+                params={
+                    "api_key": cfg.usda_api_key,
+                    "query": "test",
+                    "pageSize": 1,
+                },
+                timeout=httpx.Timeout(3.0, connect=1.5),
+            )
+        except httpx.TimeoutException:
+            services.usda_api = "timeout"
+            usda_ready = False
+        except httpx.RequestError:
+            services.usda_api = "unreachable"
+            usda_ready = False
+        else:
+            services.usda_api = "healthy" if response.is_success else "unhealthy"
+            usda_ready = response.is_success
+    else:
+        usda_ready = False
 
-    services.usda_api = "unhealthy"
-    return services, False
+    ready = db_ready and usda_ready
+    return services, ready
 
 
 def build_health_response(
@@ -93,5 +127,7 @@ def build_health_response(
         uptime=monotonic() - state.started_at,
         environment=cfg.app_env,
         version=cfg.app_version,
+        git_sha=cfg.git_sha,
+        release_id=cfg.release_id,
         services=services,
     )

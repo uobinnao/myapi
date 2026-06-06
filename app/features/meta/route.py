@@ -3,10 +3,11 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from app.features.meta.service import (
     build_api_info,
     build_health_response,
-    check_usda_dependency,
+    check_dependencies,
+    check_readiness,
 )
 from app.problem import PROBLEM_RESPONSES
-from app.schema import ApiInfo, HealthResponse, ProbeResponse
+from app.features.meta.schema import ApiInfo, HealthResponse, ProbeResponse
 from app.settings import Settings, get_settings
 from app.state import AppState, get_app_state
 
@@ -65,9 +66,8 @@ async def get_live() -> ProbeResponse:
 async def get_ready(
     response: Response,
     cfg: Settings = Depends(get_settings),
-    state: AppState = Depends(get_app_state),
 ) -> ProbeResponse:
-    _services, ready = await check_usda_dependency(cfg, state)
+    _services, ready = await check_readiness(cfg)
 
     if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
@@ -79,7 +79,7 @@ async def get_ready(
 @router.get(
     "/health",
     summary="Get health report",
-    description="Return a detailed health report for the API and its USDA dependency.",
+    description="Return a detailed health report for the API, database, and USDA dependency.",
     response_description="Detailed health status report",
     response_model=HealthResponse,
     responses={
@@ -96,7 +96,7 @@ async def get_health(
     cfg: Settings = Depends(get_settings),
     state: AppState = Depends(get_app_state),
 ) -> HealthResponse:
-    services, ready = await check_usda_dependency(cfg, state)
+    services, ready = await check_dependencies(cfg, state)
 
     if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE

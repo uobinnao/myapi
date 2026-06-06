@@ -1,14 +1,119 @@
-# Python-generated files
+# ----------------------------
+# Python bytecode / caches
+# ----------------------------
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# ----------------------------
+# Python build artifacts
+# ----------------------------
 build/
 dist/
-wheels/
-*.egg-info
-*.me
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# ----------------------------
+# Virtual environments
+# ----------------------------
+.venv/
+venv/
+env/
+ENV/
+
+# ----------------------------
+# uv / Python tooling
+# ----------------------------
+# Keep uv.lock tracked for reproducible installs.
+# Do NOT ignore uv.lock.
+.python-version
+
+# ----------------------------
+# Test / coverage / lint caches
+# ----------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.pyright/
+.pyre/
+.ruff_cache/
+.cache/
+
+# ----------------------------
+# Local environment / secrets
+# ----------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+.secret/
+*.secret
+
+# ----------------------------
+# Local databases / runtime files
+# ----------------------------
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+storage/
+tmp/
+temp/
+logs/
+*.log
+
+# ----------------------------
+# OS / editor files
+# ----------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+.zed/
+
+# ----------------------------
+# Docker / local compose overrides
+# ----------------------------
+docker-compose.override.yml
+compose.override.yml
+
+# ----------------------------
+# Pulumi local secrets/state
+# ----------------------------
+Pulumi.*.yaml.bak
+.pulumi/
+Pulumi.dev.local.yaml
+Pulumi.staging.local.yaml
+Pulumi.prod.local.yaml
+
+# ----------------------------
+# Local scratch files
+# ----------------------------
+blank.py
+t.py
+readme.me
 project_ids.txt
 
-# Virtual environments
-.venv
-.env
-!.env.example
+# ----------------------------
+# System/service local files
+# ----------------------------
+*.service
+
