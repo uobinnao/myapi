@@ -245,6 +245,7 @@ def write_env_values(env_path: Path, values: dict[str, str]) -> None:
     env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
     os.chmod(env_path, 0o600)
 
+
 def main() -> None:
     api_key = "....."
     cli = find_neon_cli()
