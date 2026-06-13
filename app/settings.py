@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     app_version: str = PROJECT_VERSION
     app_env: Literal["dev", "preview", "staging", "prod"] = "dev"
 
+    database_url: str = "postgresql://fooduser:foodpass@localhost:5432/food"
+    # database_url: str = "postgresql+psycopg://food_owner:npg_mgvqtnQHIj03@ep-rapid-bar-apevti8d.c-7.us-east-1.aws.neon.tech/food"
+    database_url_direct: str | None = None
+    database_url_pooled: str | None = None
+
     usda_base_url: str = "https://api.nal.usda.gov/fdc/v1"
     usda_api_key: str | None = None
 
@@ -55,6 +60,9 @@ class Settings(BaseSettings):
             "https://your-frontend.com",
         ]
     )
+
+    git_sha: str = Field(default="local", validation_alias="GIT_SHA")
+    release_id: str = Field(default="local", validation_alias="RELEASE_ID")
 
 
 @lru_cache

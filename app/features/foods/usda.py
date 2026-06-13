@@ -2,7 +2,7 @@ from typing import Any
 
 import httpx
 
-from app.schema import FoodItem, Macros
+from app.features.foods.schema import FoodItem, Macros
 
 
 def safe_json(response: httpx.Response) -> Any:
@@ -29,11 +29,11 @@ def normalize_foods(data: dict[str, Any]) -> list[FoodItem]:
 
         normalized.append(
             FoodItem(
-                fdcId=item.get("fdcId"),
+                fdc_Id=item.get("fdcId"),
                 description=item.get("description"),
-                brandName=item.get("brandName") or item.get("brandOwner"),
-                servingSize=item.get("servingSize"),
-                servingSizeUnit=item.get("servingSizeUnit"),
+                brand_name=item.get("brandName") or item.get("brandOwner"),
+                serving_size=item.get("servingSize"),
+                serving_size_unit=item.get("servingSizeUnit"),
                 calories=get_energy_kcal(nutrients),
                 macros=Macros(
                     protein_g=get_nutrient_grams(nutrients, ["1003", "Protein"]),

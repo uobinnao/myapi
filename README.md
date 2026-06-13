@@ -1,6 +1,7 @@
-Test api build - built for GCP not db
+Test api build - built for GCP with neon db
 
 to run dev server: uv run fastapi dev
+fuser -k 8000/tcp
 
 
 main.py        = exports app
@@ -15,4 +16,4 @@ features/meta  = root + health endpoints
 features/foods = food endpoint + USDA logic
 
 
- retest dev to prod; run staging then prod then preview bootstrap; deploy staging first then preview
+retest dev to prod; run staging then prod then preview bootstrap; deploy staging first then preview

@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.schema import ProblemDetail
+from app.features.meta.schema import ProblemDetail
 
 
 def problem_openapi_response(description: str) -> dict[str, Any]:

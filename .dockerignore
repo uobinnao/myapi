@@ -1,23 +1,95 @@
-.venv
-__pycache__/
-.pytest_cache/
-.ruff_cache/
-.github/
+# ----------------------------
+# Git
+# ----------------------------
 .git
 .gitignore
+.gitattributes
+
+# ----------------------------
+# Docker files not needed inside image
+# ----------------------------
+.dockerignore
+docker-compose*.yml
+compose*.yml
+
+# ----------------------------
+# Python bytecode / caches
+# ----------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.pyre/
+.ruff_cache/
+.cache/
+
+# ----------------------------
+# Virtual environments
+# ----------------------------
+.venv/
+venv/
+env/
+ENV/
+
+# ----------------------------
+# Local env / secrets
+# ----------------------------
 .env
 .env.*
-.vscode/
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+.secret/
+*.secret
+
+# ----------------------------
+# Local databases / runtime data
+# ----------------------------
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+storage/
+tmp/
+temp/
+logs/
+*.log
+
+# ----------------------------
+# Tests / local-only files
+# ----------------------------
 tests/
-tools/
-*.pyc
-*.pyo
-*.pyd
-*.me
-.python-version
-*.py[cod]
-dist/
-build/
-infra/
+htmlcov/
+.coverage
+.coverage.*
 blank.py
-*.md
+t.py
+readme.me
+project_ids.txt
+postgres.service
+
+# ----------------------------
+# Infra not needed by API runtime image
+# ----------------------------
+infra/
+.pulumi/
+
+# ----------------------------
+# Editor / OS
+# ----------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.zed/
+*.swp
+*.swo
+*~

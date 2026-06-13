@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any
 
@@ -13,15 +15,19 @@ class EndpointDoc(BaseModel):
 class ApiInfo(BaseModel):
     name: str
     version: str
+    environment: str
+    git_sha: str
+    release_id: str
     description: str
-    baseUrl: str
-    docsUrl: str
-    openapiUrl: str
+    base_url: str
+    docs_url: str
+    openapi_url: str
     endpoints: dict[str, EndpointDoc]
 
 
 class HealthServices(BaseModel):
     api: str
+    database: str = "not_checked"
     usda_api_key: str
     usda_api: str
 
@@ -32,30 +38,13 @@ class HealthResponse(BaseModel):
     uptime: float
     environment: str
     version: str
+    git_sha: str
+    release_id: str
     services: HealthServices
 
 
-class Macros(BaseModel):
-    protein_g: float | None = None
-    carbs_g: float | None = None
-    fat_g: float | None = None
-
-
-class FoodItem(BaseModel):
-    fdcId: int | None = None
-    description: str | None = None
-    brandName: str | None = None
-    servingSize: float | None = None
-    servingSizeUnit: str | None = None
-    calories: float | None = None
-    macros: Macros
-
-
-class FoodsResponse(BaseModel):
-    query: str
-    limit: int
-    count: int
-    foods: list[FoodItem]
+class ProbeResponse(BaseModel):
+    status: str
 
 
 class ProblemDetail(BaseModel):
@@ -70,7 +59,3 @@ class ProblemDetail(BaseModel):
     upstream_details: Any | None = None
 
     model_config = ConfigDict(extra="allow")
-
-
-class ProbeResponse(BaseModel):
-    status: str

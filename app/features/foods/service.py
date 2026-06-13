@@ -3,7 +3,7 @@ from fastapi import HTTPException, Request, status
 
 from app.features.foods.usda import normalize_foods, safe_json
 from app.problem import problem_body, problem_type_uri
-from app.schema import FoodsResponse
+from app.features.foods.schema import FoodsResponse
 from app.settings import Settings
 from app.state import AppState
 
