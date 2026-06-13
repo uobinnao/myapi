@@ -3,7 +3,7 @@ config:
   gcp:region: us-central1
   myapi-service:runtimeServiceAccountEmail: myapi-staging-runtime@i1ncx3d2imnb1k.iam.gserviceaccount.com
   myapi-service:usdaSecretName: USDA_API_KEY_STAGING
-  myapi-service:usdaSecretVersion: "16"
+  myapi-service:usdaSecretVersion: "17"
   myapi-service:invokerMember: user:tnkvie@gmail.com
   myapi-service:minInstanceCount: "0"
   myapi-service:maxInstanceCount: "1"
