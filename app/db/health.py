@@ -3,23 +3,22 @@ from __future__ import annotations
 import asyncio
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def check_database(
-    engine: AsyncEngine,
+    session: AsyncSession,
     *,
     timeout_seconds: float = 2.0,
 ) -> str:
     try:
         async with asyncio.timeout(timeout_seconds):
-            async with engine.connect() as conn:
-                await conn.execute(select(1))
+            await session.execute(select(1))
 
         return "healthy"
 
-    except TimeoutError:
-        return "timeout"
+    except TimeoutError as exc:
+        return f"timeout: {type(exc).__name__}: {exc}"
 
-    except Exception:
-        return "unhealthy"
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"

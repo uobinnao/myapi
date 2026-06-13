@@ -58,7 +58,7 @@ jobs:
           echo "project_slug=$PROJECT_SLUG" >> "$GITHUB_OUTPUT"
 
       - name: Sync dependencies
-        run: uv sync --frozen
+        run: uv sync --locked
 
       - name: Lint
         run: uv run ruff check .

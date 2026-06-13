@@ -6,7 +6,7 @@ from typing import cast
 import httpx
 from fastapi import FastAPI
 
-from app.db import engine
+# from app.db import engine
 from app.limiter import limiter
 from app.settings import get_settings
 from app.state import AppState
@@ -27,4 +27,4 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         state.http = client
         yield
 
-    await engine.dispose()
+    # await engine.dispose()

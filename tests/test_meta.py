@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
 
-def test_root_returns_metadata(client: TestClient):
-    response = client.get("/")
+def test_root_returns_metadata(fastapi_client: TestClient):
+    response = fastapi_client.get("/")
 
     assert response.status_code == 200
 
@@ -12,22 +12,22 @@ def test_root_returns_metadata(client: TestClient):
     assert body["endpoints"]["foods"]["path"] == "/foods"
 
 
-def test_live_returns_alive(client: TestClient):
-    response = client.get("/health/live")
+def test_live_returns_alive(fastapi_client: TestClient):
+    response = fastapi_client.get("/health/live")
 
     assert response.status_code == 200
     assert response.json() == {"status": "alive"}
 
 
-def test_ready_503_when_usda_key_missing(client: TestClient):
-    response = client.get("/health/ready")
+def test_ready_503_when_usda_key_missing(fastapi_client: TestClient):
+    response = fastapi_client.get("/health/ready")
 
     assert response.status_code == 503
     assert response.json() == {"status": "not_ready"}
 
 
-def test_health_unhealthy_when_usda_key_missing(client: TestClient):
-    response = client.get("/health")
+def test_health_unhealthy_when_usda_key_missing(fastapi_client: TestClient):
+    response = fastapi_client.get("/health")
 
     assert response.status_code == 503
 
