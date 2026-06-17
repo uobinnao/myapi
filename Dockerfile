@@ -20,9 +20,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 #app layer
 COPY app ./app
+COPY migrations ./migrations
+COPY alembic.ini ./alembic.ini
 COPY openapi.yaml ./openapi.yaml
 COPY openapi.json ./openapi.json
 COPY tools/run_migrations.sh ./tools/run_migrations.sh
+
+RUN chmod +x ./tools/run_migrations.sh
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable

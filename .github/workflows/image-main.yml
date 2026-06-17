@@ -297,7 +297,7 @@ jobs:
             -e DATABASE_URL="${DATABASE_URL}" \
             -e DATABASE_MIGRATION_URL="${DATABASE_MIGRATION_URL}" \
             "${IMAGE_BY_DIGEST}" \
-            bash -lc "./tools/run_migrations.sh"
+            bash -c "./tools/run_migrations.sh"
         env:
           IMAGE_BY_DIGEST: ${{ needs.build-main-image.outputs.image_ref_digest }}
           DATABASE_URL: ${{ secrets.DATABASE_STAGING_URL }}
@@ -457,7 +457,7 @@ jobs:
             -e DATABASE_URL="${DATABASE_URL}" \
             -e DATABASE_MIGRATION_URL="${DATABASE_MIGRATION_URL}" \
             "${IMAGE_BY_DIGEST}" \
-            bash -lc "./tools/run_migrations.sh"
+            bash -c "./tools/run_migrations.sh"
         env:
           IMAGE_BY_DIGEST: ${{ needs.build-main-image.outputs.image_ref_digest }}
           DATABASE_URL: ${{ secrets.DATABASE_PROD_URL }}
