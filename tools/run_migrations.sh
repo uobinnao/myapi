@@ -83,5 +83,5 @@ echo "DATABASE_URL and DATABASE_MIGRATION_URL are set; running migrations."
 export DATABASE_MIGRATION_URL="$MIGRATION_URL"
 export DATABASE_URL="$MIGRATION_URL"
 
-uv run alembic upgrade head
-uv run alembic current
+python -m alembic upgrade head
+python -m alembic current
