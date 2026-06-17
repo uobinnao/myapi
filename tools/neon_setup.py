@@ -20,7 +20,8 @@ API_BASE = "https://console.neon.tech/api/v2"
 PROJECT_NAME = "myapi"
 REGION_ID = "aws-us-east-1"  # AWS US 1 / US East
 PG_VERSION = 18
-BRANCH_NAME = "main"
+STAGING_BRANCH_NAME = "staging"
+PROD_BRANCH_NAME = "prod"
 DB_NAME = "food"
 ROLE_NAME = "food_owner"
 SAFE_NAME = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -150,6 +151,7 @@ def run_neon_cli(cli: str, args: list[str], api_key: str) -> str:
             capture_output=True,  # if output is large; stream to file; output stored in memory
             text=True,
             timeout=15,
+            env=env,
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("neonctl timed out") from exc
@@ -163,15 +165,42 @@ def run_neon_cli(cli: str, args: list[str], api_key: str) -> str:
     return url
 
 
+def create_branch(
+    project_id: str,
+    api_key: str,
+    name: str,
+    parent_id: str,
+) -> dict:
+    payload = {
+        "branch": {
+            "name": name,
+            "parent_id": parent_id,
+        },
+        "endpoints": [
+            {
+                "type": "read_write",
+            }
+        ],
+    }
+
+    return api_request(
+        "POST",
+        f"/projects/{project_id}/branches",
+        api_key,
+        payload,
+    )
+
+
 def get_connection_string(
     cli: str,
     api_key: str,
     project_id: str,
+    branch_name: str,
     pooled: bool,
 ) -> str:
     args = [
         "connection-string",
-        BRANCH_NAME,
+        branch_name,
         "--project-id",
         project_id,
         "--database-name",
@@ -247,7 +276,7 @@ def write_env_values(env_path: Path, values: dict[str, str]) -> None:
 
 
 def main() -> None:
-    api_key = "....."
+    api_key = require_api_key()
     cli = find_neon_cli()
 
     payload = {
@@ -256,39 +285,72 @@ def main() -> None:
             "region_id": REGION_ID,
             "pg_version": PG_VERSION,
             "branch": {
-                "name": BRANCH_NAME,
+                "name": STAGING_BRANCH_NAME,
                 "database_name": DB_NAME,
                 "role_name": ROLE_NAME,
             },
         }
     }
 
-    print("Creating Neon project...")
+    print("Creating Neon project with staging branch...")
     created = api_request("POST", "/projects", api_key, payload)
 
     project = created["project"]
     project_id = project["id"]
+    staging_branch = created["branch"]
+    staging_branch_id = staging_branch["id"]
 
     print(f"Created project: {project['name']}")
     print(f"Project ID: {project_id}")
     print(f"Region: {project['region_id']}")
     print(f"Postgres version: {project['pg_version']}")
+    print(f"Staging branch: {staging_branch['name']}")
 
     wait_for_operations(project_id, created.get("operations", []), api_key)
 
-    print("Getting direct connection string...")
-    direct_url = get_connection_string(
+    print("Creating prod branch from staging...")
+    prod_created = create_branch(
+        project_id=project_id,
+        api_key=api_key,
+        name=PROD_BRANCH_NAME,
+        parent_id=staging_branch_id,
+    )
+
+    wait_for_operations(project_id, prod_created.get("operations", []), api_key)
+
+    print("Getting staging direct connection string...")
+    database_migration_staging_direct = get_connection_string(
         cli=cli,
         api_key=api_key,
         project_id=project_id,
+        branch_name=STAGING_BRANCH_NAME,
         pooled=False,
     )
 
-    print("Getting pooled connection string...")
-    pooled_url = get_connection_string(
+    print("Getting staging pooled connection string...")
+    database_staging_pooled = get_connection_string(
         cli=cli,
         api_key=api_key,
         project_id=project_id,
+        branch_name=STAGING_BRANCH_NAME,
+        pooled=True,
+    )
+
+    print("Getting prod direct connection string...")
+    database_migration_prod_direct = get_connection_string(
+        cli=cli,
+        api_key=api_key,
+        project_id=project_id,
+        branch_name=PROD_BRANCH_NAME,
+        pooled=False,
+    )
+
+    print("Getting prod pooled connection string...")
+    database_prod_pooled = get_connection_string(
+        cli=cli,
+        api_key=api_key,
+        project_id=project_id,
+        branch_name=PROD_BRANCH_NAME,
         pooled=True,
     )
 
@@ -297,13 +359,15 @@ def main() -> None:
     write_env_values(
         env_path,
         {
-            "DATABASE_URL_DIRECT": direct_url,
-            "DATABASE_URL_POOLED": pooled_url,
+            "DATABASE_MIGRATION_STAGING_URL": database_migration_staging_direct,
+            "DATABASE_STAGING_URL": database_staging_pooled,
+            "DATABASE_MIGRATION_PROD_URL": database_migration_prod_direct,
+            "DATABASE_PROD_URL": database_prod_pooled,
         },
     )
 
-    print("\nDone.\n")
-    print("\nSaved urls in the project's .env file.")
+    print("\nDone.")
+    print("Saved staging and prod URLs in the project's .env file.")
 
 
 if __name__ == "__main__":

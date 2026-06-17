@@ -249,9 +249,59 @@ jobs:
               exit 1
             fi
           fi
+      - name: Feed Pulumi database URL for staging
+        working-directory: infra/service
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DATABASE_URL_VALUE="${DATABASE_URL:-}"
+          DATABASE_URL_TRIMMED="$(
+            printf '%s' "$DATABASE_URL_VALUE" |
+            sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+          )"
+          DATABASE_URL_NORMALIZED="$(
+            printf '%s' "$DATABASE_URL_TRIMMED" |
+            tr '[:upper:]' '[:lower:]'
+          )"
+
+          if [ -z "$DATABASE_URL_TRIMMED" ] || [ "$DATABASE_URL_NORMALIZED" = "none" ]; then
+            echo "No staging DATABASE_URL."
+
+            if pulumi config get databaseUrl --stack staging --non-interactive >/dev/null 2>&1; then
+              echo "Removing existing Pulumi databaseUrl config."
+              pulumi config rm databaseUrl --stack staging --non-interactive
+            else
+              echo "No existing Pulumi databaseUrl config to remove."
+            fi
+          else
+            echo "Setting staging databaseUrl Pulumi config."
+            pulumi config set databaseUrl "$DATABASE_URL_TRIMMED" --stack staging --secret --non-interactive
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_STAGING_URL }}
+
       - name: Preview staging deploy
         working-directory: infra/service
         run: pulumi preview --stack staging --non-interactive
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      - name: Run staging migrations
+        run: |
+          docker pull "${IMAGE_BY_DIGEST}"
+
+          docker run --rm \
+            -e APP_ENV=staging \
+            -e DATABASE_URL="${DATABASE_URL}" \
+            -e DATABASE_MIGRATION_URL="${DATABASE_MIGRATION_URL}" \
+            "${IMAGE_BY_DIGEST}" \
+            bash -lc "./tools/run_migrations.sh"
+        env:
+          IMAGE_BY_DIGEST: ${{ needs.build-main-image.outputs.image_ref_digest }}
+          DATABASE_URL: ${{ secrets.DATABASE_STAGING_URL }}
+          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_STAGING_URL }}
 
       - name: Deploy staging
         working-directory: infra/service
@@ -362,6 +412,56 @@ jobs:
               exit 1
             fi
           fi
+
+      - name: Feed Pulumi database URL for prod
+        working-directory: infra/service
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DATABASE_URL_VALUE="${DATABASE_URL:-}"
+          DATABASE_URL_TRIMMED="$(
+            printf '%s' "$DATABASE_URL_VALUE" |
+            sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+          )"
+          DATABASE_URL_NORMALIZED="$(
+            printf '%s' "$DATABASE_URL_TRIMMED" |
+            tr '[:upper:]' '[:lower:]'
+          )"
+
+          if [ -z "$DATABASE_URL_TRIMMED" ] || [ "$DATABASE_URL_NORMALIZED" = "none" ]; then
+            echo "No prod DATABASE_URL."
+
+            if pulumi config get databaseUrl --stack prod --non-interactive >/dev/null 2>&1; then
+              echo "Removing existing Pulumi databaseUrl config."
+              pulumi config rm databaseUrl --stack prod --non-interactive
+            else
+              echo "No existing Pulumi databaseUrl config to remove."
+            fi
+          else
+            echo "Setting prod databaseUrl Pulumi config."
+            pulumi config set databaseUrl "$DATABASE_URL_TRIMMED" --stack prod --secret --non-interactive
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_PROD_URL }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      - name: Run prod migrations
+        run: |
+          docker pull "${IMAGE_BY_DIGEST}"
+
+          docker run --rm \
+            -e APP_ENV=prod \
+            -e DATABASE_URL="${DATABASE_URL}" \
+            -e DATABASE_MIGRATION_URL="${DATABASE_MIGRATION_URL}" \
+            "${IMAGE_BY_DIGEST}" \
+            bash -lc "./tools/run_migrations.sh"
+        env:
+          IMAGE_BY_DIGEST: ${{ needs.build-main-image.outputs.image_ref_digest }}
+          DATABASE_URL: ${{ secrets.DATABASE_PROD_URL }}
+          DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_PROD_URL }}
 
       - name: Preview prod deploy
         working-directory: infra/service
