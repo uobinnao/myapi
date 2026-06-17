@@ -84,6 +84,7 @@ export DATABASE_MIGRATION_URL="$MIGRATION_URL"
 export DATABASE_URL="$MIGRATION_URL"
 
 PYTHON_BIN="${PYTHON_BIN:-/app/.venv/bin/python}"
+ALEMBIC_CONFIG="${ALEMBIC_CONFIG:-/app/alembic.ini}"
 
-"$PYTHON_BIN" -m alembic upgrade head
-"$PYTHON_BIN" -m alembic current
+"$PYTHON_BIN" -m alembic -c "$ALEMBIC_CONFIG" upgrade head
+"$PYTHON_BIN" -m alembic -c "$ALEMBIC_CONFIG" current
