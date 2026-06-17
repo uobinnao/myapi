@@ -83,5 +83,7 @@ echo "DATABASE_URL and DATABASE_MIGRATION_URL are set; running migrations."
 export DATABASE_MIGRATION_URL="$MIGRATION_URL"
 export DATABASE_URL="$MIGRATION_URL"
 
-python -m alembic upgrade head
-python -m alembic current
+PYTHON_BIN="${PYTHON_BIN:-/app/.venv/bin/python}"
+
+"$PYTHON_BIN" -m alembic upgrade head
+"$PYTHON_BIN" -m alembic current
