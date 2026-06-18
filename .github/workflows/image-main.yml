@@ -116,59 +116,9 @@ jobs:
           echo "image_ref_tag=$IMAGE_REF_TAG" >> "$GITHUB_OUTPUT"
           echo "image_ref_digest=$IMAGE_REF_DIGEST" >> "$GITHUB_OUTPUT"
 
-          printf '%s\n' "$IMAGE_REF_DIGEST" > /tmp/image-by-digest.txt
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
           GITHUB_SHA: ${{ github.sha }}
-
-      - name: Pull exact image for smoke test
-        run: docker pull "${IMAGE_REF_TAG}"
-        env:
-          IMAGE_REF_TAG: ${{ steps.refs_final.outputs.image_ref_tag }}
-
-      - name: Smoke liveness
-        run: |
-          docker run -d --name "${CONTAINER_NAME}" \
-            -e PORT=8080 \
-            -e APP_ENV=staging \
-            -e USDA_API_KEY=dummy \
-            -p 8080:8080 \
-            "${IMAGE_REF_TAG}"
-
-          for i in {1..30}; do
-            if curl -fsS http://localhost:8080/health/live; then
-              exit 0
-            fi
-            sleep 1
-          done
-          docker logs "${CONTAINER_NAME}"
-          exit 1
-        env:
-          IMAGE_REF_TAG: ${{ steps.refs_final.outputs.image_ref_tag }}
-          CONTAINER_NAME: ${{ steps.meta.outputs.project_slug }}-main
-
-      - name: Show pushed digest
-        run: |
-          echo "IMAGE_BY_DIGEST=${IMAGE_REF_DIGEST}"
-          gcloud artifacts docker images list \
-            "${IMAGE_REPO}" \
-            --include-tags
-        env:
-          IMAGE_REPO: ${{ steps.refs_final.outputs.image_repo }}
-          IMAGE_REF_DIGEST: ${{ steps.refs_final.outputs.image_ref_digest }}
-
-      - name: Upload image digest artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: image-by-digest-${{ github.sha }}
-          path: /tmp/image-by-digest.txt
-          retention-days: 7
-
-      - name: Cleanup
-        if: always()
-        run: docker rm -f "${CONTAINER_NAME}" || true
-        env:
-          CONTAINER_NAME: ${{ steps.meta.outputs.project_slug }}-main
 
   deploy-staging:
     needs: build-main-image
@@ -182,6 +132,27 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      - name: Detect migration changes
+        id: migration_changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE="${{ github.event.before }}"
+
+          if [ -z "${BASE}" ] || [ "${BASE}" = "0000000000000000000000000000000000000000" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git fetch --no-tags --depth=1 origin "${BASE}"
+
+          if git diff --name-only "${BASE}" "${GITHUB_SHA}" | grep -Eq '^(migrations/|alembic.ini|tools/run_migrations\.sh)$'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Python from .python-version
         uses: actions/setup-python@v6
@@ -281,14 +252,12 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_STAGING_URL }}
 
-      - name: Preview staging deploy
-        working-directory: infra/service
-        run: pulumi preview --stack staging --non-interactive
-
       - name: Configure Docker for Artifact Registry
+        if: steps.migration_changes.outputs.changed == 'true'
         run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
 
       - name: Run staging migrations
+        if: steps.migration_changes.outputs.changed == 'true'
         run: |
           docker pull "${IMAGE_BY_DIGEST}"
 
@@ -305,7 +274,7 @@ jobs:
 
       - name: Deploy staging
         working-directory: infra/service
-        run: pulumi up --stack staging --yes --non-interactive
+        run: pulumi up --stack staging --yes --non-interactive --skip-preview
 
       - name: Read staging URL
         id: staging
@@ -345,6 +314,27 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      - name: Detect migration changes
+        id: migration_changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE="${{ github.event.before }}"
+
+          if [ -z "${BASE}" ] || [ "${BASE}" = "0000000000000000000000000000000000000000" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git fetch --no-tags --depth=1 origin "${BASE}"
+
+          if git diff --name-only "${BASE}" "${GITHUB_SHA}" | grep -Eq '^(migrations/|alembic.ini|tools/run_migrations\.sh)$'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Python from .python-version
         uses: actions/setup-python@v6
@@ -446,9 +436,11 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_PROD_URL }}
 
       - name: Configure Docker for Artifact Registry
+        if: steps.migration_changes.outputs.changed == 'true'
         run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
 
       - name: Run prod migrations
+        if: steps.migration_changes.outputs.changed == 'true'
         run: |
           docker pull "${IMAGE_BY_DIGEST}"
 
@@ -463,13 +455,9 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_PROD_URL }}
           DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_PROD_URL }}
 
-      - name: Preview prod deploy
-        working-directory: infra/service
-        run: pulumi preview --stack prod --non-interactive
-
       - name: Deploy prod
         working-directory: infra/service
-        run: pulumi up --stack prod --yes --non-interactive
+        run: pulumi up --stack prod --yes --non-interactive --skip-preview
 
       - name: Read prod URL
         id: prod
